@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MatchLens</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141a2e; --line:#26304d; --text:#e8ecf6; --muted:#8d97b5; --accent:#f5b700; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  header .tag { color:var(--muted); font-size:12px; }
+  #backend { margin-left:auto; font-size:12px; padding:3px 8px; border-radius:10px; background:var(--panel); color:var(--muted); }
+  main { display:grid; grid-template-columns: minmax(0,1fr) 340px; gap:16px; padding:16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .stage { position:relative; }
+  #pitch { width:100%; aspect-ratio:105/68; display:block; border-radius:10px; background:#1f6b3a; }
+  .scorebug { position:absolute; top:12px; left:12px; display:flex; align-items:stretch; font-weight:700;
+              background:rgba(10,14,28,.88); border-radius:6px; overflow:hidden; }
+  .scorebug span { padding:6px 10px; } .scorebug .sc { background:#fff; color:#111; min-width:56px; text-align:center; }
+  .scorebug .clock { color:var(--accent); }
+  .overlay { position:absolute; left:12px; right:12px; bottom:12px; background:rgba(10,14,28,.92);
+             border-left:6px solid var(--accent); border-radius:6px; padding:10px 14px; transform:translateY(20px);
+             opacity:0; transition:all .35s ease; }
+  .overlay.show { opacity:1; transform:none; }
+  .overlay .t { font-weight:800; font-size:17px; } .overlay .b { color:#cfd6ea; margin-top:2px; }
+  .overlay .src { position:absolute; right:10px; top:8px; font-size:10px; color:var(--muted); text-transform:uppercase; }
+  .tagbox { position:absolute; top:12px; right:12px; background:rgba(10,14,28,.9); border-radius:6px; padding:6px 10px;
+            font-weight:700; opacity:0; transition:opacity .3s; } .tagbox.show { opacity:1; }
+  .meters { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  .meter .lbl { color:var(--muted); font-size:12px; display:flex; justify-content:space-between; }
+  .bar { height:10px; background:#2a3352; border-radius:5px; position:relative; overflow:hidden; margin-top:4px; }
+  .bar i { position:absolute; top:0; bottom:0; left:50%; background:var(--accent); transition:all .5s; }
+  .stats { width:100%; border-collapse:collapse; margin-top:12px; font-variant-numeric:tabular-nums; }
+  .stats td { padding:4px 6px; border-bottom:1px solid var(--line); } .stats td:nth-child(2) { color:var(--muted); text-align:center; }
+  .stats td:first-child { text-align:right; } label { display:block; color:var(--muted); font-size:12px; margin:8px 0 3px; }
+  select, input, button { width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--line); background:#0f1426; color:var(--text); }
+  button { background:var(--accent); color:#111; font-weight:700; border:0; cursor:pointer; margin-top:10px; }
+  button.secondary { background:#2a3352; color:var(--text); }
+  #feed { max-height:360px; overflow:auto; margin-top:8px; }
+  .item { border-left:3px solid var(--accent); padding:6px 8px; margin:6px 0; background:#0f1426; border-radius:4px; }
+  .item .m { color:var(--muted); font-size:11px; } .item .why { color:var(--muted); font-size:12px; margin-top:3px; }
+  #recap { white-space:normal; } #recap h2 { font-size:18px; } #recap h3 { font-size:14px; color:var(--accent); }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ MatchLens</h1><span class="tag">Explainable, personalized match intelligence · synthetic data</span>
+  <span id="backend">…</span>
+</header>
+<main>
+  <section>
+    <div class="stage">
+      <canvas id="pitch" width="1050" height="680"></canvas>
+      <div class="scorebug"><span id="hn">HOME</span><span class="sc" id="score">0 - 0</span><span id="an">AWAY</span><span class="clock" id="clock">0'</span></div>
+      <div class="tagbox" id="tag"></div>
+      <div class="overlay" id="ov"><div class="src" id="ovsrc"></div><div class="t" id="ovt"></div><div class="b" id="ovb"></div></div>
+    </div>
+    <div class="meters panel" style="margin-top:12px">
+      <div class="meter"><div class="lbl"><span id="mh">HOME</span><span>Momentum (5 min)</span><span id="ma">AWAY</span></div><div class="bar"><i id="mom"></i></div></div>
+      <div class="meter"><div class="lbl"><span>Control</span><span id="flowlbl">balanced</span><span>Chaos</span></div><div class="bar"><i id="flow"></i></div></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <table class="stats" id="stats"></table>
+    </div>
+    <div class="panel" style="margin-top:12px"><div id="recap"><span style="color:var(--muted)">The automated recap appears here at full time (or press “Recap”).</span></div></div>
+  </section>
+  <aside>
+    <div class="panel">
+      <b>Your experience</b>
+      <label>Mode</label><select id="mode"></select>
+      <div class="row">
+        <div><label>Favourite club</label><select id="club"><option value="">Neutral</option><option value="HOME">Home</option><option value="AWAY">Away</option></select></div>
+        <div><label>Language</label><select id="lang"></select></div>
+      </div>
+      <label>Follow a player (player mode)</label><select id="player"></select>
+      <label>Metric I care about</label>
+      <select id="metric"><option value="">Anything</option><option value="xg">Chances (xG)</option><option value="speed">Speed</option><option value="passing">Passing</option><option value="pressing">Pressing</option></select>
+      <div class="row">
+        <div><label>Match seed</label><input id="seed" type="number" value="7"></div>
+        <div><label>Speed ×</label><input id="speed" type="number" value="60"></div>
+      </div>
+      <button id="go">▶ Start match</button>
+      <button id="recapbtn" class="secondary">Recap</button>
+      <button id="export" class="secondary">Overlay JSON</button>
+    </div>
+    <div class="panel" style="margin-top:12px"><b>Story feed</b><div id="feed"></div></div>
+  </aside>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const cv = $("pitch"), cx = cv.getContext("2d"), S = 10;
+let meta = null, es = null, trail = [], ovTimer = null, tagTimer = null;
+
+function drawPitch(ball, ev) {
+  cx.fillStyle = "#1f6b3a"; cx.fillRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < 10; i++) if (i % 2) { cx.fillStyle = "#226f3e"; cx.fillRect(i * 105, 0, 105, 680); }
+  cx.strokeStyle = "rgba(255,255,255,.75)"; cx.lineWidth = 3;
+  cx.strokeRect(5, 5, 1040, 670); cx.beginPath(); cx.moveTo(525, 5); cx.lineTo(525, 675); cx.stroke();
+  cx.beginPath(); cx.arc(525, 340, 91.5, 0, Math.PI * 2); cx.stroke();
+  cx.strokeRect(5, 138, 165, 404); cx.strokeRect(880, 138, 165, 404); cx.strokeRect(5, 248, 55, 184); cx.strokeRect(990, 248, 55, 184);
+  trail.forEach((p, i) => { cx.fillStyle = `rgba(255,255,255,${(i + 1) / trail.length * .35})`; cx.beginPath(); cx.arc(p[0] * S, (68 - p[1]) * S, 4, 0, 7); cx.fill(); });
+  if (ev && ev.end_x != null && ev.x != null) {
+    cx.strokeStyle = ev.team === "HOME" ? meta.teams.HOME.color : meta.teams.AWAY.color; cx.lineWidth = 4; cx.setLineDash([10, 8]);
+    cx.beginPath(); cx.moveTo(ev.x * S, (68 - ev.y) * S); cx.lineTo(ev.end_x * S, (68 - ev.end_y) * S); cx.stroke(); cx.setLineDash([]);
+  }
+  if (ball) { cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ball[0] * S, (68 - ball[1]) * S, 9, 0, 7); cx.fill(); cx.strokeStyle = "#111"; cx.lineWidth = 2; cx.stroke(); }
+}
+
+function statsTable(s) {
+  const H = s.teams.HOME, A = s.teams.AWAY;
+  const rows = [["possession_pct", "Possession %"], ["shots", "Shots"], ["xg", "xG"], ["passes", "Passes"], ["pass_accuracy_pct", "Pass accuracy %"],
+    ["final_third_entries", "Final-third entries"], ["pressures", "Pressures"], ["tackles_won", "Tackles won"], ["max_shot_speed_kmh", "Fastest shot km/h"]];
+  $("stats").innerHTML = rows.map(([k, l]) => `<tr><td>${H[k]}</td><td>${l}</td><td>${A[k]}</td></tr>`).join("");
+}
+
+function showOverlay(o) {
+  $("ov").style.borderLeftColor = o.color; $("ovt").textContent = o.title; $("ovb").textContent = o.body;
+  $("ovsrc").textContent = o.source === "agent" ? "AI agents" : "template";
+  $("ov").classList.add("show"); clearTimeout(ovTimer); ovTimer = setTimeout(() => $("ov").classList.remove("show"), Math.max(4000, o.duration_s * 600));
+  const it = document.createElement("div"); it.className = "item"; it.style.borderLeftColor = o.color;
+  it.innerHTML = `<div class="m">${o.minute}' · ${o.kind.replace("_", " ")}</div><b>${o.title}</b><div>${o.body}</div><div class="why">${(o.why || []).join(" ")}</div>`;
+  $("feed").prepend(it);
+}
+
+function md(t) {
+  return t.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h2>$1</h2>")
+          .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/^- (.*)$/gm, "• $1<br>").replace(/\n\n/g, "<br>");
+}
+
+function params() {
+  return new URLSearchParams({ seed: $("seed").value, speed: $("speed").value, mode: $("mode").value, club: $("club").value,
+    lang: $("lang").value, player: $("player").value, metric: $("metric").value });
+}
+
+async function loadMeta() {
+  const r = await (await fetch(`/api/match?seed=${$("seed").value}`)).json(); meta = r.meta;
+  if (!$("mode").options.length) {
+    $("mode").innerHTML = Object.entries(r.modes).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    $("lang").innerHTML = Object.entries(r.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  }
+  $("player").innerHTML = ["HOME", "AWAY"].flatMap(s => meta.teams[s].players.map(p => `<option value="${p.id}">${meta.teams[s].short} #${p.number} ${p.name} (${p.role})</option>`)).join("");
+  $("hn").textContent = $("mh").textContent = meta.teams.HOME.short; $("an").textContent = $("ma").textContent = meta.teams.AWAY.short;
+  $("club").options[1].text = meta.teams.HOME.name; $("club").options[2].text = meta.teams.AWAY.name;
+  drawPitch([52.5, 34]);
+  const h = await (await fetch("/api/health")).json(); $("backend").textContent = "agents: " + h.agent_backend;
+}
+
+function start() {
+  if (es) es.close(); $("feed").innerHTML = ""; trail = [];
+  es = new EventSource(`/api/stream?${params()}`);
+  es.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === "tick") {
+      if (m.ball) { trail.push(m.ball); if (trail.length > 12) trail.shift(); }
+      drawPitch(m.ball, m.event); $("score").textContent = `${m.score.HOME} - ${m.score.AWAY}`; $("clock").textContent = `${m.minute}'`;
+      $("mom").style.left = m.dominance >= 0 ? "50%" : `${50 + m.dominance * 50}%`; $("mom").style.width = `${Math.abs(m.dominance) * 50}%`;
+      $("mom").style.background = m.dominance >= 0 ? meta.teams.HOME.color : meta.teams.AWAY.color;
+      const f = Math.min(1, m.control_chaos.turnovers_per_min / 6); $("flow").style.left = "0"; $("flow").style.width = `${f * 100}%`;
+      $("flowlbl").textContent = `${m.control_chaos.label} · ${m.control_chaos.turnovers_per_min}/min`; statsTable(m);
+    } else if (m.type === "overlay") {
+      if (m.slot === "player_tag") { $("tag").textContent = `${m.title}`; $("tag").classList.add("show"); clearTimeout(tagTimer); tagTimer = setTimeout(() => $("tag").classList.remove("show"), 4000); }
+      showOverlay(m);
+    } else if (m.type === "player_card") {
+      showOverlay({ color: "#7c4dff", title: `${m.name}: ${m.touches} touches`, body: `${m.passes} passes (${m.pass_accuracy_pct}%), ${m.shots} shots, ${m.xg} xG, top speed ${m.top_speed_kmh} km/h`, minute: Math.floor(m.t / 60) + 1, kind: "player card", why: [], duration_s: 8, source: "stats" });
+    } else if (m.type === "end") { es.close(); recap(); }
+  };
+}
+
+async function recap() {
+  $("recap").innerHTML = "<span style='color:var(--muted)'>Writing recap…</span>";
+  const r = await (await fetch(`/api/recap?${params()}`)).json();
+  $("recap").innerHTML = md(r.markdown) + `<div style="color:var(--muted);font-size:11px;margin-top:8px">source: ${r.source}</div>`;
+}
+
+$("go").onclick = start; $("recapbtn").onclick = recap; $("seed").onchange = loadMeta;
+$("export").onclick = () => window.open(`/api/overlays?${params()}`, "_blank");
+loadMeta();
+</script>
+</body>
+</html>
