@@ -130,7 +130,7 @@ class MatchAgents:
             return final["title"], final["body"], "agent"
         except Exception as e:
             self.failures += 1
-            print(f"[matchlens] agent step failed ({type(e).__name__}); template fallback")
+            print(f"[matchlens] agent step failed ({type(e).__name__}: {str(e)[:300]}); template fallback")
             return fallback_title, fallback_body, "template"
 
     async def recap(self, moments: list[dict], persona: Persona) -> tuple[str, str]:
@@ -144,5 +144,5 @@ class MatchAgents:
                 return text.text, "agent"
             except Exception as e:
                 self.failures += 1
-                print(f"[matchlens] recap agent failed ({type(e).__name__}); template fallback")
+                print(f"[matchlens] recap agent failed ({type(e).__name__}: {str(e)[:300]}); template fallback")
         return templates.recap(facts, persona, self.state.meta), "template"
