@@ -122,7 +122,7 @@ function showOverlay(o) {
   $("ovsrc").textContent = o.source === "agent" ? "AI agents" : "template";
   $("ov").classList.add("show"); clearTimeout(ovTimer); ovTimer = setTimeout(() => $("ov").classList.remove("show"), Math.max(4000, o.duration_s * 600));
   const it = document.createElement("div"); it.className = "item"; it.style.borderLeftColor = o.color;
-  it.innerHTML = `<div class="m">${o.minute}' · ${o.kind.replace("_", " ")}</div><b>${o.title}</b><div>${o.body}</div><div class="why">${(o.why || []).join(" ")}</div>`;
+  it.innerHTML = `<div class="m">${o.minute}' · ${o.kind.replace("_", " ")}</div><b>${o.title}</b><div>${o.body}</div>${(o.why || []).join(" ") !== o.body ? `<div class="why">${(o.why || []).join(" ")}</div>` : ""}`;
   $("feed").prepend(it);
 }
 

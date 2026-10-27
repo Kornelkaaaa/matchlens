@@ -120,7 +120,7 @@ class MomentDetector:
                                          ("xg", "xG", "{:.2f}")):
                     a, b = s.window_sum(tm, kind), s.window_sum(opp, kind)
                     if a > b:
-                        facts.append(f"{label.capitalize()} in the last 5 min: {fmt.format(a)} vs {fmt.format(b)}.")
+                        facts.append(f"{label[0].upper() + label[1:]} in the last 5 min: {fmt.format(a)} vs {fmt.format(b)}.")
                 if facts:
                     out.append(mk("momentum_swing", 0.65, f"Momentum shift: {self.name(tm)} take control", facts,
                                   {"dominance": dom}, tm=tm))
