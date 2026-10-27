@@ -4,198 +4,321 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MatchLens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0b1020; --panel:#141a2e; --line:#26304d; --text:#e8ecf6; --muted:#8d97b5; --accent:#f5b700; }
+  :root {
+    --night:#121c24; --stand:#192731; --stand-2:#20313c; --line:#2b3d49; --chalk:#eef1ea; --muted:#93a3ae;
+    --flood:#ffd166; --ok:#5cc28a; --warn:#f2a54a;
+    --font:"Archivo", system-ui, sans-serif;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:18px; margin:0; letter-spacing:.5px; }
-  header .tag { color:var(--muted); font-size:12px; }
-  #backend { margin-left:auto; font-size:12px; padding:3px 8px; border-radius:10px; background:var(--panel); color:var(--muted); }
-  main { display:grid; grid-template-columns: minmax(0,1fr) 340px; gap:16px; padding:16px 20px; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
-  .stage { position:relative; }
-  #pitch { width:100%; aspect-ratio:105/68; display:block; border-radius:10px; background:#1f6b3a; }
-  .scorebug { position:absolute; top:12px; left:12px; display:flex; align-items:stretch; font-weight:700;
-              background:rgba(10,14,28,.88); border-radius:6px; overflow:hidden; }
-  .scorebug span { padding:6px 10px; } .scorebug .sc { background:#fff; color:#111; min-width:56px; text-align:center; }
-  .scorebug .clock { color:var(--accent); }
-  .overlay { position:absolute; left:12px; right:12px; bottom:12px; background:rgba(10,14,28,.92);
-             border-left:6px solid var(--accent); border-radius:6px; padding:10px 14px; transform:translateY(20px);
-             opacity:0; transition:all .35s ease; }
-  .overlay.show { opacity:1; transform:none; }
-  .overlay .t { font-weight:800; font-size:17px; } .overlay .b { color:#cfd6ea; margin-top:2px; }
-  .overlay .src { position:absolute; right:10px; top:8px; font-size:10px; color:var(--muted); text-transform:uppercase; }
-  .tagbox { position:absolute; top:12px; right:12px; background:rgba(10,14,28,.9); border-radius:6px; padding:6px 10px;
-            font-weight:700; opacity:0; transition:opacity .3s; } .tagbox.show { opacity:1; }
-  .meters { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
-  .meter .lbl { color:var(--muted); font-size:12px; display:flex; justify-content:space-between; }
-  .bar { height:10px; background:#2a3352; border-radius:5px; position:relative; overflow:hidden; margin-top:4px; }
-  .bar i { position:absolute; top:0; bottom:0; left:50%; background:var(--accent); transition:all .5s; }
-  .stats { width:100%; border-collapse:collapse; margin-top:12px; font-variant-numeric:tabular-nums; }
-  .stats td { padding:4px 6px; border-bottom:1px solid var(--line); } .stats td:nth-child(2) { color:var(--muted); text-align:center; }
-  .stats td:first-child { text-align:right; } label { display:block; color:var(--muted); font-size:12px; margin:8px 0 3px; }
-  select, input, button { width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--line); background:#0f1426; color:var(--text); }
-  button { background:var(--accent); color:#111; font-weight:700; border:0; cursor:pointer; margin-top:10px; }
-  button.secondary { background:#2a3352; color:var(--text); }
-  #feed { max-height:360px; overflow:auto; margin-top:8px; }
-  .item { border-left:3px solid var(--accent); padding:6px 8px; margin:6px 0; background:#0f1426; border-radius:4px; }
-  .item .m { color:var(--muted); font-size:11px; } .item .why { color:var(--muted); font-size:12px; margin-top:3px; }
-  #recap { white-space:normal; } #recap h2 { font-size:18px; } #recap h3 { font-size:14px; color:var(--accent); }
-  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  #duo { display:none; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
-  #duo.on { display:grid; }
-  .view { background:var(--panel); border:1px solid var(--line); border-top:4px solid var(--accent); border-radius:10px; padding:12px 14px; }
-  .view .who { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
-  .view .t { font-weight:800; font-size:17px; margin-top:4px; } .view .b { color:#cfd6ea; margin-top:4px; }
-  .view .src { color:var(--muted); font-size:11px; margin-top:6px; }
-  #trace .head { color:var(--muted); font-size:12px; margin:6px 0; }
-  .step { display:grid; grid-template-columns:18px 1fr auto; gap:6px; padding:5px 0; border-bottom:1px solid var(--line); }
-  .step .n { font-weight:700; text-transform:capitalize; } .step .ms { color:var(--muted); font-variant-numeric:tabular-nums; }
-  .step .note { grid-column:2 / 4; color:var(--muted); font-size:12px; }
-  .ok { color:#4caf50; } .fallback { color:#ff9800; } .skipped, .offline { color:var(--muted); }
+  body { margin:0; background:var(--night); color:var(--chalk); font:15px/1.5 var(--font); }
+  button, select, input { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--flood); outline-offset:2px; }
+
+  /* Top bar */
+  header { display:flex; align-items:center; gap:18px; padding:14px 24px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .brand { font-stretch:72%; font-weight:900; font-size:26px; margin:0; }
+  .fixture { color:var(--muted); }
+  .fixture b { color:var(--chalk); font-weight:600; }
+  #backend { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+  #backend i { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  #backend.live i { background:var(--ok); box-shadow:0 0 0 3px rgba(92,194,138,.2); }
+
+  main { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:20px; padding:20px 24px 32px; max-width:1500px; margin:0 auto; }
+  @media (max-width:980px) { main { grid-template-columns:1fr; padding:16px; } header { padding:12px 16px; } }
+  .card { background:var(--stand); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  h2 { font-stretch:72%; font-weight:800; font-size:19px; margin:0 0 10px; }
+  .hint { color:var(--muted); font-size:13px; margin:0; }
+
+  /* Pitch stage: the hero */
+  .stage { position:relative; border-radius:14px; overflow:hidden; background:#2a7246; }
+  #pitch { width:100%; aspect-ratio:105/68; display:block; }
+  .scorebug { position:absolute; top:14px; left:14px; display:flex; align-items:stretch; font-stretch:72%; font-weight:800; font-size:20px;
+              border-radius:6px; overflow:hidden; box-shadow:0 4px 18px rgba(0,0,0,.35); }
+  .scorebug span { padding:5px 12px; background:rgba(18,28,36,.92); }
+  .scorebug .team { border-bottom:4px solid var(--c, var(--muted)); }
+  .scorebug .sc { background:var(--chalk); color:var(--night); min-width:66px; text-align:center; font-variant-numeric:tabular-nums; }
+  .scorebug .clock { color:var(--flood); font-variant-numeric:tabular-nums; min-width:52px; text-align:center; }
+  .tagbox { position:absolute; top:14px; right:14px; background:rgba(18,28,36,.92); border-radius:6px; padding:6px 12px;
+            font-stretch:72%; font-weight:700; font-size:17px; opacity:0; transition:opacity .3s; }
+  .tagbox.show { opacity:1; }
+
+  /* Broadcast caption: the one bold element */
+  .chyron { position:absolute; left:14px; right:14px; bottom:14px; display:grid; grid-template-columns:auto 1fr; border-radius:6px; overflow:hidden;
+            box-shadow:0 6px 24px rgba(0,0,0,.45); transform:translateY(16px); opacity:0; transition:transform .35s ease, opacity .35s ease; }
+  .chyron.show { transform:none; opacity:1; }
+  .chyron .min { background:var(--c, var(--flood)); color:#fff; font-stretch:72%; font-weight:900; font-size:30px; padding:8px 14px;
+                 display:flex; align-items:center; font-variant-numeric:tabular-nums; }
+  .chyron .txt { background:rgba(18,28,36,.95); padding:9px 16px 10px; }
+  .chyron .t { font-stretch:72%; font-weight:800; font-size:24px; line-height:1.15; }
+  .chyron .b { color:#d5dde2; margin-top:3px; max-width:75ch; }
+  .chyron .src { color:var(--muted); font-size:12px; margin-top:4px; }
+
+  /* Empty state on the pitch */
+  .prompt { position:absolute; inset:0; display:grid; place-items:center; background:rgba(18,28,36,.55); text-align:center; padding:20px; }
+  .prompt.hidden { display:none; }
+  .prompt p { font-stretch:72%; font-weight:800; font-size:clamp(22px, 3vw, 34px); margin:0 0 6px; }
+  .prompt span { color:#d5dde2; }
+  .prompt button { width:auto; padding:11px 26px; }
+
+  /* Side by side */
+  .duo { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
+  @media (max-width:640px) { .duo { grid-template-columns:1fr; } }
+  .view { background:var(--stand); border:1px solid var(--line); border-left:5px solid var(--c, var(--line)); border-radius:10px; padding:14px 16px; min-height:140px; }
+  .view .who { color:var(--muted); font-size:13px; }
+  .view .t { font-stretch:72%; font-weight:800; font-size:22px; line-height:1.15; margin-top:6px; }
+  .view .b { color:#d5dde2; margin-top:6px; }
+  .view .src { color:var(--muted); font-size:12px; margin-top:8px; }
+  .duo-empty { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+               background:var(--stand); border:1px dashed var(--line); border-radius:10px; padding:14px 16px; }
+  .duo-empty button { width:auto; padding:9px 14px; }
+
+  /* Meters + stats */
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; align-items:start; }
+  @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
+  .meter .lbl { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:13px; }
+  .meter .lbl b { color:var(--chalk); font-weight:600; }
+  .bar { height:10px; background:var(--stand-2); border-radius:5px; position:relative; overflow:hidden; margin-top:6px; }
+  .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--flood); transition:all .5s; }
+  .bar.split::after { content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--night); }
+  .stat { display:grid; grid-template-columns:48px 1fr 48px; align-items:center; gap:10px; padding:5px 0; font-variant-numeric:tabular-nums; }
+  .stat .v { font-stretch:72%; font-weight:700; font-size:17px; } .stat .v:last-child { text-align:right; }
+  .stat .mid { text-align:center; font-size:13px; color:var(--muted); }
+  .stat .bars { display:grid; grid-template-columns:1fr 1fr; gap:3px; margin-top:3px; }
+  .stat .bars span { height:5px; background:var(--stand-2); border-radius:3px; overflow:hidden; display:flex; }
+  .stat .bars span:first-child { justify-content:flex-end; }
+  .stat .bars i { display:block; height:100%; transition:width .5s; }
+
+  /* Controls */
+  label, .lab { display:block; color:var(--muted); font-size:13px; margin:14px 0 6px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { padding:7px 12px; border-radius:20px; background:var(--stand-2); border:1px solid var(--line); font-weight:500; cursor:pointer; }
+  .chips button[aria-pressed="true"] { background:var(--chalk); color:var(--night); border-color:var(--chalk); font-weight:700; }
+  select, input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--night); }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row label { margin-top:0; }
+  button.primary { border:0; border-radius:8px; background:var(--flood); color:var(--night); font-weight:800; font-size:16px; cursor:pointer; }
+  #go { width:100%; margin-top:18px; padding:12px; }
+  button.ghost { border-radius:8px; background:transparent; border:1px solid var(--line); cursor:pointer; }
+  button.ghost:hover, .chips button:hover { border-color:var(--muted); }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .actions button { padding:9px; }
+  details { margin-top:14px; color:var(--muted); font-size:13px; }
+  details summary { cursor:pointer; }
+  details .row { margin-top:8px; }
+  .hide { display:none !important; }
+
+  /* Trace + feed */
+  aside .card + .card { margin-top:16px; }
+  #trace .head { color:var(--muted); font-size:13px; margin-bottom:6px; }
+  .step { display:grid; grid-template-columns:18px 1fr auto; gap:4px 8px; padding:7px 0; border-top:1px solid var(--line); }
+  .step .n { font-weight:600; }
+  .step .n::first-letter { text-transform:uppercase; }
+  .step .ms { color:var(--muted); font-variant-numeric:tabular-nums; font-size:13px; }
+  .step .note { grid-column:2 / 4; color:var(--muted); font-size:13px; }
+  .ok { color:var(--ok); } .fallback { color:var(--warn); } .skipped, .offline { color:var(--muted); }
+  #feed { max-height:380px; overflow:auto; }
+  .item { border-left:3px solid var(--c, var(--line)); padding:8px 10px; margin:8px 0 0; background:var(--stand-2); border-radius:0 6px 6px 0; }
+  .item .m { color:var(--muted); font-size:12px; } .item b { display:block; margin-top:2px; }
+  .item .why { color:var(--muted); font-size:13px; margin-top:3px; }
+
+  /* Recap */
+  .recap { margin-top:16px; }
+  #recap { max-width:75ch; }
+  #recap h3 { font-stretch:72%; font-size:24px; margin:4px 0 8px; } #recap h4 { font-size:15px; margin:16px 0 4px; color:var(--flood); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>⚽ MatchLens</h1><span class="tag">Explainable, personalized match intelligence · synthetic data</span>
-  <span id="backend">…</span>
+  <h1 class="brand">MatchLens</h1>
+  <span class="fixture" id="fixture">Loading match…</span>
+  <span id="backend"><i></i><span id="backendtxt">Checking AI agents…</span></span>
 </header>
 <main>
   <section>
     <div class="stage">
-      <canvas id="pitch" width="1050" height="680"></canvas>
-      <div class="scorebug"><span id="hn">HOME</span><span class="sc" id="score">0 - 0</span><span id="an">AWAY</span><span class="clock" id="clock">0'</span></div>
+      <canvas id="pitch" width="1050" height="680" aria-label="Live pitch view"></canvas>
+      <div class="scorebug"><span class="team" id="hn">HOME</span><span class="sc" id="score">0 - 0</span><span class="team" id="an">AWAY</span><span class="clock" id="clock">0'</span></div>
       <div class="tagbox" id="tag"></div>
-      <div class="overlay" id="ov"><div class="src" id="ovsrc"></div><div class="t" id="ovt"></div><div class="b" id="ovb"></div></div>
+      <div class="chyron" id="ov" aria-live="polite"><div class="min" id="ovmin"></div><div class="txt"><div class="t" id="ovt"></div><div class="b" id="ovb"></div><div class="src" id="ovsrc"></div></div></div>
+      <div class="prompt" id="prompt"><div><p>Pick who's watching, then kick off</p><span>Every key moment is explained live by AI agents, written for that viewer.</span><br><br><button class="primary" id="go2">Start match</button></div></div>
     </div>
-    <div id="duo">
-      <div class="view" id="v1"><div class="who" id="v1who"></div><div class="t" id="v1t">Same moment, two fans</div><div class="b" id="v1b">Pick a second viewer under “Compare with” and start the match.</div><div class="src" id="v1src"></div></div>
-      <div class="view" id="v2"><div class="who" id="v2who"></div><div class="t" id="v2t"></div><div class="b" id="v2b"></div><div class="src" id="v2src"></div></div>
+
+    <div class="duo" id="duo">
+      <div class="duo-empty" id="duoempty">
+        <p class="hint">See the same moment told to two different fans at once.</p>
+        <button class="ghost" id="quickcompare">Compare with a young fan in Spanish</button>
+      </div>
+      <div class="view hide" id="v1"><div class="who" id="v1who"></div><div class="t" id="v1t"></div><div class="b" id="v1b"></div><div class="src" id="v1src"></div></div>
+      <div class="view hide" id="v2"><div class="who" id="v2who"></div><div class="t" id="v2t"></div><div class="b" id="v2b"></div><div class="src" id="v2src"></div></div>
     </div>
-    <div class="meters panel" style="margin-top:12px">
-      <div class="meter"><div class="lbl"><span id="mh">HOME</span><span>Momentum (5 min)</span><span id="ma">AWAY</span></div><div class="bar"><i id="mom"></i></div></div>
-      <div class="meter"><div class="lbl"><span>Control</span><span id="flowlbl">balanced</span><span>Chaos</span></div><div class="bar"><i id="flow"></i></div></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="meter"><div class="lbl"><b id="mh">HOME</b><span>Momentum, last 5 min</span><b id="ma">AWAY</b></div><div class="bar split"><i id="mom"></i></div></div>
+        <div class="meter" style="margin-top:16px"><div class="lbl"><span>Control</span><b id="flowlbl">balanced</b><span>Chaos</span></div><div class="bar"><i id="flow"></i></div></div>
+      </div>
+      <div class="card" id="stats"><p class="hint">Live team stats appear once the match starts.</p></div>
     </div>
-    <div class="panel" style="margin-top:12px">
-      <table class="stats" id="stats"></table>
-    </div>
-    <div class="panel" style="margin-top:12px"><div id="recap"><span style="color:var(--muted)">The automated recap appears here at full time (or press “Recap”).</span></div></div>
+
+    <div class="card recap"><h2>Match recap</h2><div id="recap"><p class="hint">Written automatically at full time, or press “Write recap” at any point.</p></div></div>
   </section>
+
   <aside>
-    <div class="panel">
-      <b>Your experience</b>
-      <label>Mode</label><select id="mode"></select>
-      <div class="row">
-        <div><label>Favourite club</label><select id="club"><option value="">Neutral</option><option value="HOME">Home</option><option value="AWAY">Away</option></select></div>
-        <div><label>Language</label><select id="lang"></select></div>
+    <div class="card">
+      <h2>Who's watching</h2>
+      <span class="lab">Viewer</span><div class="chips" id="mode" role="group" aria-label="Viewer"></div>
+      <div class="row" style="margin-top:14px">
+        <div><label for="lang">Language</label><select id="lang"></select></div>
+        <div><label for="club">Supports</label><select id="club"><option value="">Neutral</option><option value="HOME">Home</option><option value="AWAY">Away</option></select></div>
       </div>
-      <label>Follow a player (player mode)</label><select id="player"></select>
-      <label>Metric I care about</label>
-      <select id="metric"><option value="">Anything</option><option value="xg">Chances (xG)</option><option value="speed">Speed</option><option value="passing">Passing</option><option value="pressing">Pressing</option></select>
-      <div class="row">
-        <div><label>Match seed</label><input id="seed" type="number" value="7"></div>
-        <div><label>Speed ×</label><input id="speed" type="number" value="60"></div>
-      </div>
-      <label>Compare with (side by side)</label>
-      <div class="row">
-        <div><select id="cmode"><option value="">Nobody</option></select></div>
-        <div><select id="clang"></select></div>
-      </div>
-      <button id="go">▶ Start match</button>
-      <button id="recapbtn" class="secondary">Recap</button>
-      <button id="export" class="secondary">Overlay JSON</button>
+      <div id="playerwrap" class="hide"><label for="player">Player to follow</label><select id="player"></select></div>
+      <label for="metric">Cares most about</label>
+      <select id="metric"><option value="">Everything</option><option value="xg">Chances (xG)</option><option value="speed">Speed</option><option value="passing">Passing</option><option value="pressing">Pressing</option></select>
+
+      <span class="lab">Compare with a second viewer</span><div class="chips" id="cmode" role="group" aria-label="Second viewer"></div>
+      <div id="clangwrap" class="hide"><label for="clang">Their language</label><select id="clang"></select></div>
+
+      <details><summary>Match settings</summary>
+        <div class="row">
+          <div><label for="seed">Match number</label><input id="seed" type="number" value="7" min="1"></div>
+          <div><label for="speed">Replay speed ×</label><input id="speed" type="number" value="60" min="1"></div>
+        </div>
+      </details>
+      <button class="primary" id="go">Start match</button>
+      <div class="actions"><button class="ghost" id="recapbtn">Write recap</button><button class="ghost" id="export">Open overlay JSON</button></div>
     </div>
-    <div class="panel" style="margin-top:12px"><b>Agent trace</b><div id="trace"><div class="head">Each moment is handed from agent to agent. The latest handoff shows here.</div></div></div>
-    <div class="panel" style="margin-top:12px"><b>Story feed</b><div id="feed"></div></div>
+    <div class="card"><h2>Agent trace</h2><div id="trace"><p class="hint">Each moment passes from agent to agent. The latest handoff appears here.</p></div></div>
+    <div class="card"><h2>Story feed</h2><div id="feed"><p class="hint">Key moments will collect here.</p></div></div>
   </aside>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const cv = $("pitch"), cx = cv.getContext("2d"), S = 10;
 let meta = null, es = null, trail = [], ovTimer = null, tagTimer = null, modes = {}, languages = {};
+const choice = { mode: "casual", cmode: "" };
 const ICON = { ok: "✓", fallback: "↺", skipped: "–", offline: "⚙" };
-
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const teamColor = side => side && meta ? meta.teams[side].color : "var(--flood)";
+const srcText = s => s === "agent" ? "Written by AI agents" : s === "stats" ? "Live player stats" : "Written from match data (template)";
 
-function who(p) { return `${modes[p.mode] || p.mode} · ${languages[p.language] || p.language}`; }
-
-function showDuo(o) {
-  $("v1").style.borderTopColor = $("v2").style.borderTopColor = o.color;
-  $("v1who").textContent = who({ mode: $("mode").value, language: $("lang").value });
-  $("v1t").textContent = o.title; $("v1b").textContent = o.body; $("v1src").textContent = `${o.minute}' · ${o.source === "agent" ? "AI agents" : "template"}`;
-  $("v2who").textContent = who(o.compare.persona);
-  $("v2t").textContent = o.compare.title; $("v2b").textContent = o.compare.body; $("v2src").textContent = `${o.minute}' · ${o.compare.source === "agent" ? "AI agents" : "template"}`;
+function chips(id, opts, key) {
+  $(id).innerHTML = opts.map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${choice[key] === v}">${esc(l)}</button>`).join("");
+  $(id).onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    setChoice(key, b.dataset.v);
+  };
 }
 
-function showTrace(o) {
-  const total = o.trace.reduce((a, t) => a + t.ms, 0);
-  $("trace").innerHTML = `<div class="head">${o.minute}' · ${o.kind.replace("_", " ")} · ${(total / 1000).toFixed(1)} s total</div>` +
-    o.trace.map(t => `<div class="step"><span class="${t.status}">${ICON[t.status] || "·"}</span><span class="n">${esc(t.agent)}</span>` +
-      `<span class="ms">${t.ms ? (t.ms / 1000).toFixed(1) + " s" : t.status}</span>${t.note ? `<span class="note">${esc(t.note)}</span>` : ""}</div>`).join("");
+function setChoice(key, v) {
+  choice[key] = v;
+  [...$(key).children].forEach(x => x.setAttribute("aria-pressed", x.dataset.v === v));
+  $("playerwrap").classList.toggle("hide", choice.mode !== "player");
+  $("clangwrap").classList.toggle("hide", !choice.cmode);
 }
+
+function who(p) { return `${modes[p.mode] || p.mode}, ${languages[p.language] || p.language}`; }
 
 function drawPitch(ball, ev) {
-  cx.fillStyle = "#1f6b3a"; cx.fillRect(0, 0, cv.width, cv.height);
-  for (let i = 0; i < 10; i++) if (i % 2) { cx.fillStyle = "#226f3e"; cx.fillRect(i * 105, 0, 105, 680); }
-  cx.strokeStyle = "rgba(255,255,255,.75)"; cx.lineWidth = 3;
+  for (let i = 0; i < 10; i++) { cx.fillStyle = i % 2 ? "#2e7a4b" : "#2a7246"; cx.fillRect(i * 105, 0, 105, 680); }
+  cx.strokeStyle = "rgba(238,241,234,.8)"; cx.lineWidth = 3;
   cx.strokeRect(5, 5, 1040, 670); cx.beginPath(); cx.moveTo(525, 5); cx.lineTo(525, 675); cx.stroke();
   cx.beginPath(); cx.arc(525, 340, 91.5, 0, Math.PI * 2); cx.stroke();
   cx.strokeRect(5, 138, 165, 404); cx.strokeRect(880, 138, 165, 404); cx.strokeRect(5, 248, 55, 184); cx.strokeRect(990, 248, 55, 184);
   trail.forEach((p, i) => { cx.fillStyle = `rgba(255,255,255,${(i + 1) / trail.length * .35})`; cx.beginPath(); cx.arc(p[0] * S, (68 - p[1]) * S, 4, 0, 7); cx.fill(); });
   if (ev && ev.end_x != null && ev.x != null) {
-    cx.strokeStyle = ev.team === "HOME" ? meta.teams.HOME.color : meta.teams.AWAY.color; cx.lineWidth = 4; cx.setLineDash([10, 8]);
+    cx.strokeStyle = teamColor(ev.team); cx.lineWidth = 4; cx.setLineDash([10, 8]);
     cx.beginPath(); cx.moveTo(ev.x * S, (68 - ev.y) * S); cx.lineTo(ev.end_x * S, (68 - ev.end_y) * S); cx.stroke(); cx.setLineDash([]);
   }
-  if (ball) { cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ball[0] * S, (68 - ball[1]) * S, 9, 0, 7); cx.fill(); cx.strokeStyle = "#111"; cx.lineWidth = 2; cx.stroke(); }
+  if (ball) { cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ball[0] * S, (68 - ball[1]) * S, 9, 0, 7); cx.fill(); cx.strokeStyle = "#121c24"; cx.lineWidth = 2; cx.stroke(); }
 }
 
 function statsTable(s) {
   const H = s.teams.HOME, A = s.teams.AWAY;
-  const rows = [["possession_pct", "Possession %"], ["shots", "Shots"], ["xg", "xG"], ["passes", "Passes"], ["pass_accuracy_pct", "Pass accuracy %"],
-    ["final_third_entries", "Final-third entries"], ["pressures", "Pressures"], ["tackles_won", "Tackles won"], ["max_shot_speed_kmh", "Fastest shot km/h"]];
-  $("stats").innerHTML = rows.map(([k, l]) => `<tr><td>${H[k]}</td><td>${l}</td><td>${A[k]}</td></tr>`).join("");
+  const rows = [["possession_pct", "Possession %"], ["shots", "Shots"], ["xg", "xG"], ["pass_accuracy_pct", "Pass accuracy %"],
+    ["final_third_entries", "Final-third entries"], ["pressures", "Pressures"], ["tackles_won", "Tackles won"], ["max_shot_speed_kmh", "Fastest shot, km/h"]];
+  $("stats").innerHTML = rows.map(([k, l]) => {
+    const h = +H[k] || 0, a = +A[k] || 0, t = h + a || 1;
+    return `<div class="stat"><span class="v">${H[k]}</span><div><div class="mid">${l}</div><div class="bars">` +
+      `<span><i style="width:${h / t * 100}%;background:${meta.teams.HOME.color}"></i></span>` +
+      `<span><i style="width:${a / t * 100}%;background:${meta.teams.AWAY.color}"></i></span></div></div><span class="v">${A[k]}</span></div>`;
+  }).join("");
 }
 
 function showOverlay(o) {
-  $("ov").style.borderLeftColor = o.color; $("ovt").textContent = o.title; $("ovb").textContent = o.body;
-  $("ovsrc").textContent = o.source === "agent" ? "AI agents" : "template";
+  const c = o.team ? teamColor(o.team) : "var(--flood)";
+  $("ov").style.setProperty("--c", c); $("ovmin").textContent = `${o.minute}'`;
+  $("ovt").textContent = o.title; $("ovb").textContent = o.body; $("ovsrc").textContent = srcText(o.source);
   $("ov").classList.add("show"); clearTimeout(ovTimer); ovTimer = setTimeout(() => $("ov").classList.remove("show"), Math.max(4000, o.duration_s * 600));
-  const it = document.createElement("div"); it.className = "item"; it.style.borderLeftColor = o.color;
-  it.innerHTML = `<div class="m">${o.minute}' · ${o.kind.replace("_", " ")}</div><b>${o.title}</b><div>${o.body}</div>${(o.why || []).join(" ") !== o.body ? `<div class="why">${(o.why || []).join(" ")}</div>` : ""}`;
+  if (!$("feed").querySelector(".item")) $("feed").innerHTML = "";
+  const it = document.createElement("div"); it.className = "item"; it.style.setProperty("--c", c);
+  const why = (o.why || []).join(" ");
+  it.innerHTML = `<div class="m">${o.minute}', ${esc(o.kind.replace("_", " "))}</div><b>${esc(o.title)}</b><div>${esc(o.body)}</div>${why && why !== o.body ? `<div class="why">${esc(why)}</div>` : ""}`;
   $("feed").prepend(it);
 }
 
+function showDuo(o) {
+  const c = o.team ? teamColor(o.team) : "var(--flood)";
+  $("v1").style.setProperty("--c", c); $("v2").style.setProperty("--c", c);
+  $("v1t").textContent = o.title; $("v1b").textContent = o.body; $("v1src").textContent = `${o.minute}', ${srcText(o.source)}`;
+  $("v2who").textContent = who(o.compare.persona);
+  $("v2t").textContent = o.compare.title; $("v2b").textContent = o.compare.body; $("v2src").textContent = `${o.minute}', ${srcText(o.compare.source)}`;
+}
+
+function showTrace(o) {
+  const total = o.trace.reduce((a, t) => a + t.ms, 0);
+  $("trace").innerHTML = `<div class="head">${o.minute}', ${esc(o.kind.replace("_", " "))}${total ? `, ${(total / 1000).toFixed(1)} s in total` : ""}</div>` +
+    o.trace.map(t => `<div class="step"><span class="${t.status}">${ICON[t.status] || "·"}</span><span class="n">${esc(t.agent)}</span>` +
+      `<span class="ms">${t.ms ? (t.ms / 1000).toFixed(1) + " s" : t.status}</span>${t.note ? `<span class="note">${esc(t.note)}</span>` : ""}</div>`).join("");
+}
+
 function md(t) {
-  return t.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h2>$1</h2>")
+  return esc(t).replace(/^### (.*)$/gm, "<h4>$1</h4>").replace(/^## (.*)$/gm, "<h3>$1</h3>").replace(/^# (.*)$/gm, "<h3>$1</h3>")
           .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/^- (.*)$/gm, "• $1<br>").replace(/\n\n/g, "<br>");
 }
 
 function params() {
-  return new URLSearchParams({ seed: $("seed").value, speed: $("speed").value, mode: $("mode").value, club: $("club").value,
-    lang: $("lang").value, player: $("player").value, metric: $("metric").value, cmode: $("cmode").value, clang: $("clang").value });
+  return new URLSearchParams({ seed: $("seed").value, speed: $("speed").value, mode: choice.mode, club: $("club").value,
+    lang: $("lang").value, player: $("player").value, metric: $("metric").value, cmode: choice.cmode, clang: $("clang").value });
 }
 
 async function loadMeta() {
   const r = await (await fetch(`/api/match?seed=${$("seed").value}`)).json(); meta = r.meta;
-  if (!$("mode").options.length) {
-    $("mode").innerHTML = Object.entries(r.modes).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-    $("lang").innerHTML = Object.entries(r.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-    $("clang").innerHTML = $("lang").innerHTML;
-    $("cmode").innerHTML += Object.entries(r.modes).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  if (!$("lang").options.length) {
     modes = r.modes; languages = r.languages;
+    $("lang").innerHTML = Object.entries(languages).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+    $("clang").innerHTML = $("lang").innerHTML;
+    chips("mode", Object.entries(modes), "mode");
+    chips("cmode", [["", "Nobody"], ...Object.entries(modes)], "cmode");
   }
-  $("player").innerHTML = ["HOME", "AWAY"].flatMap(s => meta.teams[s].players.map(p => `<option value="${p.id}">${meta.teams[s].short} #${p.number} ${p.name} (${p.role})</option>`)).join("");
-  $("hn").textContent = $("mh").textContent = meta.teams.HOME.short; $("an").textContent = $("ma").textContent = meta.teams.AWAY.short;
-  $("club").options[1].text = meta.teams.HOME.name; $("club").options[2].text = meta.teams.AWAY.name;
+  const H = meta.teams.HOME, A = meta.teams.AWAY;
+  $("player").innerHTML = ["HOME", "AWAY"].flatMap(s => meta.teams[s].players.map(p => `<option value="${p.id}">${esc(meta.teams[s].short)} #${p.number} ${esc(p.name)} (${esc(p.role)})</option>`)).join("");
+  $("hn").textContent = $("mh").textContent = H.short; $("an").textContent = $("ma").textContent = A.short;
+  $("hn").style.setProperty("--c", H.color); $("an").style.setProperty("--c", A.color);
+  $("club").options[1].text = H.name; $("club").options[2].text = A.name;
+  $("fixture").innerHTML = `<b>${esc(H.name)}</b> v <b>${esc(A.name)}</b>, synthetic match ${esc($("seed").value)}`;
   drawPitch([52.5, 34]);
-  const h = await (await fetch("/api/health")).json(); $("backend").textContent = "agents: " + h.agent_backend;
+  const h = await (await fetch("/api/health")).json(), live = h.agent_backend !== "templates";
+  $("backend").classList.toggle("live", live);
+  $("backendtxt").textContent = live ? "AI agents on (Microsoft Foundry)" : "Template mode (no AI backend)";
 }
 
 function start() {
-  if (es) es.close(); $("feed").innerHTML = ""; trail = [];
-  $("duo").classList.toggle("on", !!$("cmode").value);
+  if (es) es.close(); trail = [];
+  $("feed").innerHTML = '<p class="hint">Key moments will collect here.</p>';
+  $("prompt").classList.add("hidden"); $("go").textContent = "Restart match";
+  const duo = !!choice.cmode;
+  $("duoempty").classList.toggle("hide", duo); $("v1").classList.toggle("hide", !duo); $("v2").classList.toggle("hide", !duo);
+  if (duo) {
+    $("v1who").textContent = who({ mode: choice.mode, language: $("lang").value });
+    $("v2who").textContent = who({ mode: choice.cmode, language: $("clang").value });
+    ["v1", "v2"].forEach(v => { $(v + "t").textContent = "Waiting for the first big moment"; $(v + "b").textContent = ""; $(v + "src").textContent = ""; });
+  }
   es = new EventSource(`/api/stream?${params()}`);
   es.onmessage = e => {
     const m = JSON.parse(e.data);
@@ -205,25 +328,26 @@ function start() {
       $("mom").style.left = m.dominance >= 0 ? "50%" : `${50 + m.dominance * 50}%`; $("mom").style.width = `${Math.abs(m.dominance) * 50}%`;
       $("mom").style.background = m.dominance >= 0 ? meta.teams.HOME.color : meta.teams.AWAY.color;
       const f = Math.min(1, m.control_chaos.turnovers_per_min / 6); $("flow").style.left = "0"; $("flow").style.width = `${f * 100}%`;
-      $("flowlbl").textContent = `${m.control_chaos.label} · ${m.control_chaos.turnovers_per_min}/min`; statsTable(m);
+      $("flowlbl").textContent = `${m.control_chaos.label}, ${m.control_chaos.turnovers_per_min} turnovers/min`; statsTable(m);
     } else if (m.type === "overlay") {
-      if (m.slot === "player_tag") { $("tag").textContent = `${m.title}`; $("tag").classList.add("show"); clearTimeout(tagTimer); tagTimer = setTimeout(() => $("tag").classList.remove("show"), 4000); }
+      if (m.slot === "player_tag") { $("tag").textContent = m.title; $("tag").classList.add("show"); clearTimeout(tagTimer); tagTimer = setTimeout(() => $("tag").classList.remove("show"), 4000); }
       showOverlay(m);
       if (m.trace) showTrace(m);
       if (m.compare) showDuo(m);
     } else if (m.type === "player_card") {
-      showOverlay({ color: "#7c4dff", title: `${m.name}: ${m.touches} touches`, body: `${m.passes} passes (${m.pass_accuracy_pct}%), ${m.shots} shots, ${m.xg} xG, top speed ${m.top_speed_kmh} km/h`, minute: Math.floor(m.t / 60) + 1, kind: "player card", why: [], duration_s: 8, source: "stats" });
-    } else if (m.type === "end") { es.close(); recap(); }
+      showOverlay({ title: `${m.name}: ${m.touches} touches`, body: `${m.passes} passes (${m.pass_accuracy_pct}%), ${m.shots} shots, ${m.xg} xG, top speed ${m.top_speed_kmh} km/h`, minute: Math.floor(m.t / 60) + 1, kind: "player card", why: [], duration_s: 8, source: "stats" });
+    } else if (m.type === "end") { es.close(); $("go").textContent = "Start match"; recap(); }
   };
 }
 
 async function recap() {
-  $("recap").innerHTML = "<span style='color:var(--muted)'>Writing recap…</span>";
+  $("recap").innerHTML = '<p class="hint">Writing the recap…</p>';
   const r = await (await fetch(`/api/recap?${params()}`)).json();
-  $("recap").innerHTML = md(r.markdown) + `<div style="color:var(--muted);font-size:11px;margin-top:8px">source: ${r.source}</div>`;
+  $("recap").innerHTML = md(r.markdown) + `<p class="hint" style="margin-top:12px">${r.source === "agent" ? "Written by the Recap agent" : "Written from match data (template)"}</p>`;
 }
 
-$("go").onclick = start; $("recapbtn").onclick = recap; $("seed").onchange = loadMeta;
+$("go").onclick = $("go2").onclick = start; $("recapbtn").onclick = recap; $("seed").onchange = loadMeta;
+$("quickcompare").onclick = () => { $("clang").value = "es"; setChoice("cmode", "kids"); start(); };
 $("export").onclick = () => window.open(`/api/overlays?${params()}`, "_blank");
 loadMeta();
 </script>
