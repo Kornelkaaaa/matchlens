@@ -95,3 +95,8 @@ def test_failed_personalizer_falls_back_without_breaking_other_steps():
     (kids_view,), trace = asyncio.run(agents.narrate_many(goal, [Persona(mode="kids")]))
     assert kids_view[2] == "template" and kids_view[0]
     assert trace[-1]["status"] == "fallback" and trace[0]["status"] == "ok"
+
+
+def test_overlay_export_is_a_time_ordered_timeline():
+    out = asyncio.run(export_overlays(7, Persona(mode="analyst")))["overlays"]
+    assert [o["match_t"] for o in out] == sorted(o["match_t"] for o in out)

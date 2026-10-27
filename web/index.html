@@ -348,7 +348,12 @@ async function recap() {
 
 $("go").onclick = $("go2").onclick = start; $("recapbtn").onclick = recap; $("seed").onchange = loadMeta;
 $("quickcompare").onclick = () => { $("clang").value = "es"; setChoice("cmode", "kids"); start(); };
-$("export").onclick = () => window.open(`/api/overlays?${params()}`, "_blank");
+$("export").onclick = () => {
+  const w = window.open("", "_blank");
+  if (!w) { window.location.href = `/api/overlays?${params()}`; return; }
+  w.document.write('<body style="font:16px system-ui;background:#121c24;color:#eef1ea;padding:24px">Preparing overlay JSON: the AI agents are writing every caption for this viewer. This takes about 15 seconds.</body>');
+  w.location.href = `/api/overlays?${params()}`;
+};
 loadMeta();
 </script>
 </body>

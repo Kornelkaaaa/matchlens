@@ -37,16 +37,29 @@ def run_offline(seed: int) -> tuple[MatchState, list[dict]]:
     return state, moments
 
 
+_EXPORTS: dict[tuple, dict] = {}
+EXPORT_CONCURRENCY = 6   # moments narrated in parallel; keeps a full-match export to seconds, not minutes
+
+
 async def export_overlays(seed: int, persona: Persona) -> dict:
     """Full machine-readable overlay timeline for a persona (what a rendering partner would ingest)."""
+    key = (seed, *persona.to_dict().values())
+    if key in _EXPORTS:
+        return _EXPORTS[key]
     state, moments = run_offline(seed)
     agents = MatchAgents(state)
-    out = []
-    for m in moments:
-        if wants(persona, m):
+    gate = asyncio.Semaphore(EXPORT_CONCURRENCY)
+
+    async def one(m):
+        async with gate:
             title, body, src = await agents.narrate(m, persona)
-            out.append(overlay(m, title, body, persona.to_dict(), state.meta, src))
-    return {"meta": state.meta, "persona": persona.to_dict(), "backend": agents.backend, "overlays": out}
+        return overlay(m, title, body, persona.to_dict(), state.meta, src)
+
+    out = await asyncio.gather(*[one(m) for m in moments if wants(persona, m)])
+    result = {"meta": state.meta, "persona": persona.to_dict(), "backend": agents.backend, "overlays": sorted(out, key=lambda o: o["match_t"])}
+    if all(o["source"] == "agent" for o in out) or agents.backend == "templates":
+        _EXPORTS[key] = result   # don't cache a run where the AI fell back, so the next try can do better
+    return result
 
 
 class LiveMatch:
