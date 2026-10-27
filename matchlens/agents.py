@@ -37,6 +37,13 @@ def _load_dotenv():
                 os.environ.setdefault(k.strip(), v.strip().strip('"'))
 
 
+def _base_url(url: str) -> str:
+    """Keep only https://host/ (portals sometimes show the endpoint with /openai/v1/ appended)."""
+    from urllib.parse import urlparse
+    u = urlparse(url.strip())
+    return f"{u.scheme}://{u.netloc}/"
+
+
 def make_client():
     """Return (chat_client, backend_name) or (None, 'templates')."""
     _load_dotenv()
@@ -50,7 +57,7 @@ def make_client():
         if os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
             from agent_framework.openai import OpenAIChatCompletionClient
             return OpenAIChatCompletionClient(model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
-                                              azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+                                              azure_endpoint=_base_url(os.environ["AZURE_OPENAI_ENDPOINT"]),
                                               api_key=os.environ["AZURE_OPENAI_API_KEY"],
                                               api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")), "azure-openai"
     except Exception as e:  # missing package or bad config → offline mode, never crash the broadcast
