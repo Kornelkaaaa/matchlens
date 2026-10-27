@@ -45,8 +45,8 @@ def raw_events(seed: int = 7, limit: int = 50):
 
 @app.get("/api/stream")
 async def stream(request: Request, seed: int = 7, speed: float = 60.0):
-    persona = Persona.from_query(dict(request.query_params))
-    live = LiveMatch(seed, persona, speed)
+    q = dict(request.query_params)
+    live = LiveMatch(seed, Persona.from_query(q), speed, compare=Persona.compare_from_query(q))
 
     async def sse():
         async for msg in live.stream():

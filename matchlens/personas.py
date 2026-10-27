@@ -40,6 +40,16 @@ class Persona:
             p.language = "en"
         return p
 
+    @classmethod
+    def compare_from_query(cls, q: dict) -> "Persona | None":
+        """Second viewer for side-by-side mode (cmode/clang); shares club, player and metric with the first."""
+        if q.get("cmode") not in MODES:
+            return None
+        base = cls.from_query(q)
+        lang = q.get("clang", "en")
+        return cls(mode=q["cmode"], club=base.club, player_id=base.player_id,
+                   language=lang if lang in LANGUAGES else "en", metric=base.metric)
+
     def to_dict(self):
         return asdict(self)
 

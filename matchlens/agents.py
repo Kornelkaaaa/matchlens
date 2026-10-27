@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 
 from . import templates
 from .personas import LANGUAGES, Persona
@@ -122,23 +123,59 @@ class MatchAgents:
         res = await asyncio.wait_for(agent.run(prompt), timeout=STEP_TIMEOUT_S)
         return res.text
 
-    async def narrate(self, moment: dict, persona: Persona) -> tuple[str, str, str]:
-        """Return (title, body, source). Each step falls back independently."""
-        fallback_title, fallback_body = templates.caption(moment, persona, self.state.meta)
-        if not self.live:
-            return fallback_title, fallback_body, "template"
+    async def _step(self, trace: list, name: str, agent, payload: dict) -> str:
+        """Run one agent step and record it in the trace (who ran, how long, ok/failed)."""
+        t0 = time.perf_counter()
         try:
-            analysis = await self._ask(self.analyst, json.dumps({"moment": moment}))
-            draft = _parse_json(await self._ask(self.narrator, json.dumps({"moment": moment, "analysis": analysis})))
-            if persona.mode == "analyst" and persona.language == "en" and not persona.club:
-                return draft["title"], draft["body"], "agent"
-            final = _parse_json(await self._ask(self.personalizer, json.dumps(
-                {"graphic": draft, "viewer_profile": persona.describe(self.state.meta)})))
-            return final["title"], final["body"], "agent"
+            text = await self._ask(agent, json.dumps(payload))
         except Exception as e:
             self.failures += 1
+            trace.append({"agent": name, "ms": int((time.perf_counter() - t0) * 1000), "status": "fallback",
+                          "note": type(e).__name__})
             print(f"[matchlens] agent step failed ({type(e).__name__}: {str(e)[:300]}); template fallback")
-            return fallback_title, fallback_body, "template"
+            raise
+        trace.append({"agent": name, "ms": int((time.perf_counter() - t0) * 1000), "status": "ok"})
+        return text
+
+    async def _personalize(self, draft: dict, persona: Persona, fallback: tuple[str, str], trace: list):
+        label = f"personalizer ({persona.mode}, {persona.language})"
+        if persona.mode == "analyst" and persona.language == "en" and not persona.club:
+            trace.append({"agent": label, "ms": 0, "status": "skipped", "note": "analyst draft already fits"})
+            return draft["title"], draft["body"], "agent"
+        try:
+            final = _parse_json(await self._step(trace, label, self.personalizer,
+                                                 {"graphic": draft, "viewer_profile": persona.describe(self.state.meta)}))
+            return final["title"], final["body"], "agent"
+        except Exception:
+            return (*fallback, "template")
+
+    async def narrate_many(self, moment: dict, personas: list[Persona]) -> tuple[list[tuple[str, str, str]], list[dict]]:
+        """One moment, many viewers. Analyst + Narrator run once (shared reasoning); the Personalizer then runs
+        in parallel for each viewer persona. Every step falls back to templates on its own.
+        Returns ([(title, body, source) per persona], trace)."""
+        fallbacks = [templates.caption(moment, p, self.state.meta) for p in personas]
+        trace: list[dict] = []
+        if not self.live:
+            trace.append({"agent": "templates", "ms": 0, "status": "offline", "note": "no AI backend: deterministic templates"})
+            return [(*fb, "template") for fb in fallbacks], trace
+        try:
+            analysis = await self._step(trace, "analyst", self.analyst, {"moment": moment})
+            try:
+                a = _parse_json(analysis)
+                trace[-1]["note"] = f"{a.get('why_it_matters', '')} (confidence {a.get('confidence', '?')})"
+            except Exception:
+                pass
+            draft = _parse_json(await self._step(trace, "narrator", self.narrator, {"moment": moment, "analysis": analysis}))
+            trace[-1]["note"] = draft.get("title", "")
+        except Exception:
+            return [(*fb, "template") for fb in fallbacks], trace
+        results = await asyncio.gather(*[self._personalize(draft, p, fb, trace) for p, fb in zip(personas, fallbacks)])
+        return list(results), trace
+
+    async def narrate(self, moment: dict, persona: Persona) -> tuple[str, str, str]:
+        """Return (title, body, source) for a single viewer."""
+        (result,), _ = await self.narrate_many(moment, [persona])
+        return result
 
     async def recap(self, moments: list[dict], persona: Persona) -> tuple[str, str]:
         facts = {"final": self.state.snapshot(), "top_players": self.state.top_players(3),

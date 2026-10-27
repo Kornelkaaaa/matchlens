@@ -36,6 +36,11 @@ flowchart LR
 | **Personalizer** | Rewrites for the viewer: tone, depth, "your team" framing, language | — |
 | **Recap** | Writes the full-time studio/streaming recap | `get_match_snapshot` |
 
+* **One analysis, many fans:** the Analyst and Narrator run once per moment; the Personalizer then runs in parallel
+  for every viewer. **Side-by-side mode** shows the same moment told to two viewers at once (e.g. Analyst in English
+  vs Young fan in Spanish).
+* **Visible orchestration:** every overlay carries an **agent trace** (which agent ran, how long it took, ok / skipped /
+  fallback, the Analyst's reasoning and confidence), shown live in the UI.
 * **Shared state:** all agents read the same live `MatchState`.
 * **Grounded:** agents only receive detected evidence + tool data; prompts forbid invented facts.
 * **Fault tolerant:** each step has a timeout and an independent fallback to deterministic templates, plus a
@@ -50,14 +55,15 @@ python -m uvicorn matchlens.server:app --reload
 # open http://127.0.0.1:8000  → pick a mode, club, player, language → ▶ Start match
 ```
 
-Turn on the AI agents (Microsoft Foundry):
+Turn on the AI agents (Microsoft Foundry): copy `.env.example` to `.env` and set either the Foundry project
+(`FOUNDRY_PROJECT_ENDPOINT`, `FOUNDRY_MODEL`, auth via `az login`) or the Azure OpenAI endpoint of your Foundry resource
+(`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`).
 
-```bash
-az login
-cp .env.example .env   # set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL (e.g. a gpt-4o-mini deployment)
-```
+**Live demo:** https://matchlens-wvu-fmhsdqcwabdbdrdr.eastus2-01.azurewebsites.net/ (Azure App Service + Microsoft Foundry,
+gpt-4.1-mini). Try: Mode = Analyst, Compare with = Young fan + Spanish, ▶ Start match.
 
-Tests: `python -m pytest -q`
+Tests: `python -m pytest -q` (also run on every push by GitHub Actions; the Azure deploy only happens if they pass).
+The tests cover the agent handoffs and the fallback path with fake agents, so they run without Azure.
 
 ### API
 

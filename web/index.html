@@ -44,6 +44,17 @@
   .item .m { color:var(--muted); font-size:11px; } .item .why { color:var(--muted); font-size:12px; margin-top:3px; }
   #recap { white-space:normal; } #recap h2 { font-size:18px; } #recap h3 { font-size:14px; color:var(--accent); }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  #duo { display:none; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  #duo.on { display:grid; }
+  .view { background:var(--panel); border:1px solid var(--line); border-top:4px solid var(--accent); border-radius:10px; padding:12px 14px; }
+  .view .who { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  .view .t { font-weight:800; font-size:17px; margin-top:4px; } .view .b { color:#cfd6ea; margin-top:4px; }
+  .view .src { color:var(--muted); font-size:11px; margin-top:6px; }
+  #trace .head { color:var(--muted); font-size:12px; margin:6px 0; }
+  .step { display:grid; grid-template-columns:18px 1fr auto; gap:6px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .step .n { font-weight:700; text-transform:capitalize; } .step .ms { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .step .note { grid-column:2 / 4; color:var(--muted); font-size:12px; }
+  .ok { color:#4caf50; } .fallback { color:#ff9800; } .skipped, .offline { color:var(--muted); }
 </style>
 </head>
 <body>
@@ -58,6 +69,10 @@
       <div class="scorebug"><span id="hn">HOME</span><span class="sc" id="score">0 - 0</span><span id="an">AWAY</span><span class="clock" id="clock">0'</span></div>
       <div class="tagbox" id="tag"></div>
       <div class="overlay" id="ov"><div class="src" id="ovsrc"></div><div class="t" id="ovt"></div><div class="b" id="ovb"></div></div>
+    </div>
+    <div id="duo">
+      <div class="view" id="v1"><div class="who" id="v1who"></div><div class="t" id="v1t">Same moment, two fans</div><div class="b" id="v1b">Pick a second viewer under “Compare with” and start the match.</div><div class="src" id="v1src"></div></div>
+      <div class="view" id="v2"><div class="who" id="v2who"></div><div class="t" id="v2t"></div><div class="b" id="v2b"></div><div class="src" id="v2src"></div></div>
     </div>
     <div class="meters panel" style="margin-top:12px">
       <div class="meter"><div class="lbl"><span id="mh">HOME</span><span>Momentum (5 min)</span><span id="ma">AWAY</span></div><div class="bar"><i id="mom"></i></div></div>
@@ -83,17 +98,43 @@
         <div><label>Match seed</label><input id="seed" type="number" value="7"></div>
         <div><label>Speed ×</label><input id="speed" type="number" value="60"></div>
       </div>
+      <label>Compare with (side by side)</label>
+      <div class="row">
+        <div><select id="cmode"><option value="">Nobody</option></select></div>
+        <div><select id="clang"></select></div>
+      </div>
       <button id="go">▶ Start match</button>
       <button id="recapbtn" class="secondary">Recap</button>
       <button id="export" class="secondary">Overlay JSON</button>
     </div>
+    <div class="panel" style="margin-top:12px"><b>Agent trace</b><div id="trace"><div class="head">Each moment is handed from agent to agent. The latest handoff shows here.</div></div></div>
     <div class="panel" style="margin-top:12px"><b>Story feed</b><div id="feed"></div></div>
   </aside>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const cv = $("pitch"), cx = cv.getContext("2d"), S = 10;
-let meta = null, es = null, trail = [], ovTimer = null, tagTimer = null;
+let meta = null, es = null, trail = [], ovTimer = null, tagTimer = null, modes = {}, languages = {};
+const ICON = { ok: "✓", fallback: "↺", skipped: "–", offline: "⚙" };
+
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function who(p) { return `${modes[p.mode] || p.mode} · ${languages[p.language] || p.language}`; }
+
+function showDuo(o) {
+  $("v1").style.borderTopColor = $("v2").style.borderTopColor = o.color;
+  $("v1who").textContent = who({ mode: $("mode").value, language: $("lang").value });
+  $("v1t").textContent = o.title; $("v1b").textContent = o.body; $("v1src").textContent = `${o.minute}' · ${o.source === "agent" ? "AI agents" : "template"}`;
+  $("v2who").textContent = who(o.compare.persona);
+  $("v2t").textContent = o.compare.title; $("v2b").textContent = o.compare.body; $("v2src").textContent = `${o.minute}' · ${o.compare.source === "agent" ? "AI agents" : "template"}`;
+}
+
+function showTrace(o) {
+  const total = o.trace.reduce((a, t) => a + t.ms, 0);
+  $("trace").innerHTML = `<div class="head">${o.minute}' · ${o.kind.replace("_", " ")} · ${(total / 1000).toFixed(1)} s total</div>` +
+    o.trace.map(t => `<div class="step"><span class="${t.status}">${ICON[t.status] || "·"}</span><span class="n">${esc(t.agent)}</span>` +
+      `<span class="ms">${t.ms ? (t.ms / 1000).toFixed(1) + " s" : t.status}</span>${t.note ? `<span class="note">${esc(t.note)}</span>` : ""}</div>`).join("");
+}
 
 function drawPitch(ball, ev) {
   cx.fillStyle = "#1f6b3a"; cx.fillRect(0, 0, cv.width, cv.height);
@@ -133,7 +174,7 @@ function md(t) {
 
 function params() {
   return new URLSearchParams({ seed: $("seed").value, speed: $("speed").value, mode: $("mode").value, club: $("club").value,
-    lang: $("lang").value, player: $("player").value, metric: $("metric").value });
+    lang: $("lang").value, player: $("player").value, metric: $("metric").value, cmode: $("cmode").value, clang: $("clang").value });
 }
 
 async function loadMeta() {
@@ -141,6 +182,9 @@ async function loadMeta() {
   if (!$("mode").options.length) {
     $("mode").innerHTML = Object.entries(r.modes).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
     $("lang").innerHTML = Object.entries(r.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    $("clang").innerHTML = $("lang").innerHTML;
+    $("cmode").innerHTML += Object.entries(r.modes).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    modes = r.modes; languages = r.languages;
   }
   $("player").innerHTML = ["HOME", "AWAY"].flatMap(s => meta.teams[s].players.map(p => `<option value="${p.id}">${meta.teams[s].short} #${p.number} ${p.name} (${p.role})</option>`)).join("");
   $("hn").textContent = $("mh").textContent = meta.teams.HOME.short; $("an").textContent = $("ma").textContent = meta.teams.AWAY.short;
@@ -151,6 +195,7 @@ async function loadMeta() {
 
 function start() {
   if (es) es.close(); $("feed").innerHTML = ""; trail = [];
+  $("duo").classList.toggle("on", !!$("cmode").value);
   es = new EventSource(`/api/stream?${params()}`);
   es.onmessage = e => {
     const m = JSON.parse(e.data);
@@ -164,6 +209,8 @@ function start() {
     } else if (m.type === "overlay") {
       if (m.slot === "player_tag") { $("tag").textContent = `${m.title}`; $("tag").classList.add("show"); clearTimeout(tagTimer); tagTimer = setTimeout(() => $("tag").classList.remove("show"), 4000); }
       showOverlay(m);
+      if (m.trace) showTrace(m);
+      if (m.compare) showDuo(m);
     } else if (m.type === "player_card") {
       showOverlay({ color: "#7c4dff", title: `${m.name}: ${m.touches} touches`, body: `${m.passes} passes (${m.pass_accuracy_pct}%), ${m.shots} shots, ${m.xg} xG, top speed ${m.top_speed_kmh} km/h`, minute: Math.floor(m.t / 60) + 1, kind: "player card", why: [], duration_s: 8, source: "stats" });
     } else if (m.type === "end") { es.close(); recap(); }

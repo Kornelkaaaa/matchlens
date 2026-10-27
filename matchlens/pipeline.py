@@ -50,9 +50,10 @@ async def export_overlays(seed: int, persona: Persona) -> dict:
 
 
 class LiveMatch:
-    def __init__(self, seed: int, persona: Persona, speed: float = 60.0):
+    def __init__(self, seed: int, persona: Persona, speed: float = 60.0, compare: Persona | None = None):
         self.match = get_match(seed)
         self.persona = persona
+        self.compare = compare          # optional second viewer: same moment, narrated side by side
         self.speed = max(1.0, speed)
         self.state = MatchState(self.match["meta"])
         self.detector = MomentDetector(self.state)
@@ -64,8 +65,14 @@ class LiveMatch:
         pending: set[asyncio.Task] = set()
 
         async def narrate(m):
-            title, body, src = await self.agents.narrate(m, self.persona)
-            await queue.put({"type": "overlay", **overlay(m, title, body, self.persona.to_dict(), self.state.meta, src)})
+            personas = [self.persona] + ([self.compare] if self.compare else [])
+            results, trace = await self.agents.narrate_many(m, personas)
+            title, body, src = results[0]
+            msg = {"type": "overlay", **overlay(m, title, body, self.persona.to_dict(), self.state.meta, src), "trace": trace}
+            if self.compare:
+                ct, cb, cs = results[1]
+                msg["compare"] = {"title": ct, "body": cb, "source": cs, "persona": self.compare.to_dict()}
+            await queue.put(msg)
 
         async def produce():
             prev_t, last_player_card = 0.0, 0.0
