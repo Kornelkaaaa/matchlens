@@ -1,6 +1,6 @@
 # ⚽ MatchLens: explainable, personalized match intelligence
 
-**Microsoft Premier League Hackathon 2026** · Team: Kornelia Buszka, Julia Ivey
+**Inside the Game: Developer Hackathon 2026 (Microsoft)** · Team: Kornelia Buszka, Julia Ivey
 
 Football stories don't start and end with the scoreline. MatchLens turns a live feed of **synthetic football
 events** into **explainable match intelligence**: live stats, key moments with the evidence for *why* they
