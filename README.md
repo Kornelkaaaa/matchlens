@@ -1,4 +1,4 @@
-# ⚽ MatchLens: explainable, personalized match intelligence
+# MatchLens: explainable, personalized match intelligence
 
 **Inside the Game: Developer Hackathon 2026 (Microsoft)** · Team: Kornelia Buszka, Julia Ivey
 
